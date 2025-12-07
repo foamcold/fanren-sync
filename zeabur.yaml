@@ -1,0 +1,47 @@
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: Fanren Sync
+spec:
+  description: 一个基于 FastAPI 构建的简单、安全、可自托管的 JSON 数据同步服务。
+  icon: https://api.iconify.design/mdi:scroll-text-outline.svg
+  tags:
+      - 酒馆
+      - 工具
+      - 云存档
+      - 凡人修仙传
+      - Python
+  variables:
+    - key: PUBLIC_DOMAIN
+      type: DOMAIN
+      name: 域名
+      description: 您希望绑定到 Fanren Sync 的域名。
+    - key: SYNC_PASSWORD
+      type: STRING
+      name: 同步密码
+      description: 用于身份验证的密码。
+  services:
+    - name: fanren-sync
+      template: PREBUILT
+      domainKey: PUBLIC_DOMAIN
+      spec:
+        source:
+          image: foamcold/fanren-sync:amd
+        ports:
+          - id: web
+            port: 8000
+            type: HTTP
+        env:
+          SYNC_PASSWORD:
+            default: ${SYNC_PASSWORD}
+        volumes:
+          - id: data
+            dir: /app/data
+  readme: |-
+    # 酒馆角色卡《凡人修仙传》云存档
+    这是一个一键部署模板，专为酒馆角色卡《凡人修仙传》云存档功能而设计。
+    ## 如何使用
+    1.  部署完成后，Zeabur 会为你提供一个公网域名。
+    2.  复制这个域名（例如：`https://your-service-name.zeabur.app/设置的同步密码`）。
+    3.  将其粘贴到酒馆角色卡《凡人修仙传》云存档设置中的 "云服务器地址:" 输入框里。
+    4.  大功告成！

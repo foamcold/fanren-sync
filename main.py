@@ -10,7 +10,7 @@ import traceback
 from typing import Any
 from fastapi import FastAPI, status, Depends, HTTPException, Path, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import json
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -288,12 +288,17 @@ async def delete_archive(archiveName: str):
 
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.get("/")
 async def root():
-    """根路径访问被禁止。"""
+    """根路径返回欢迎语。"""
     return JSONResponse(
-        status_code=status.HTTP_403_FORBIDDEN,
-        content={"success": False, "error": "访问被拒绝。请使用正确的 api 路径和密码。"},
+        status_code=status.HTTP_200_OK,
+        content={"success": True, "message": "Fanren Sync 服务正在运行。请使用正确的 API 路径和密码进行访问。"},
     )
 
 # 将带有密码保护的路由器包含到主应用中

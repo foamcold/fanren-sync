@@ -13,6 +13,10 @@
   - 过滤存档名称，有效防止路径遍历攻击。
   - 根目录访问限制，保护服务不被随意探测。
 
+## ⚡ 一键部署
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/XQ9UAD)
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
