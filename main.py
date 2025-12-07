@@ -5,8 +5,10 @@ import aiofiles
 import aiofiles.os
 import logging
 import sys
+import urllib.parse
 from typing import Any
 from fastapi import FastAPI, status, Depends, HTTPException, Path, APIRouter, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import json
 from pydantic import BaseModel
@@ -22,6 +24,7 @@ class TranslationFilter(logging.Filter):
     日志过滤器：
     1. 将英文日志翻译成中文
     2. 将 0.0.0.0 和 127.0.0.1 替换为 localhost
+    3. URL 解码
     """
     def filter(self, record):
         msg = record.msg
@@ -39,6 +42,13 @@ class TranslationFilter(logging.Filter):
             record.args = ()
 
         if isinstance(msg, str):
+            # URL 解码 (让日志中的中文路径/参数可读)
+            if "%" in msg:
+                try:
+                    msg = urllib.parse.unquote(msg)
+                except Exception:
+                    pass
+
             # 替换 IP 地址 (在格式化之后进行，这样参数里的 IP 也会被替换)
             msg = msg.replace("0.0.0.0", "localhost").replace("127.0.0.1", "localhost")
             
@@ -91,8 +101,11 @@ LOGGING_CONFIG = {
         "uvicorn": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "uvicorn.error": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "uvicorn.access": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "app": {"handlers": ["console"], "level": "INFO", "propagate": False},
     },
 }
+
+logger = logging.getLogger("app")
 
 # --- 配置 ---
 sync_password = os.getenv("sync_password")
@@ -117,6 +130,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# --- CORS 配置 ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源，根据需要可限制
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有方法
+    allow_headers=["*"],  # 允许所有头
+)
+
 # --- 异常处理 ---
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -139,16 +161,25 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 class SaveData(BaseModel):
     """定义保存请求的数据结构"""
     data: Any
+    archiveName: str | None = None  # 兼容旧版 API，允许在 body 中传递 archiveName
 
 
 # --- 安全与依赖 ---
 def sanitize_filename(filename: str) -> str:
     """
-    清理文件名，只允许字母、数字、下划线和连字符。
+    清理文件名，允许字母(含中文等Unicode字符)、数字、下划线和连字符。
     防止路径遍历攻击。
     """
-    # 移除非法字符
-    sanitized = re.sub(r'[^a-za-z0-9_\-]', '', filename)
+    # 移除非法字符 (保留 Unicode 字母和数字)
+    # \w 在 Python 3 的 re 模块中默认包含 Unicode 字符 (字母, 数字, 下划线)
+    # 但为了更精确控制，我们排除掉除了 字母、数字、下划线、连字符 以外的字符
+    # 注意：为了安全起见，我们仍然要防止路径遍历 (.. / 等)
+    
+    # 简单粗暴的方法：只保留 字母(Unicode)、数字、下划线、连字符
+    # Python 的 \w 匹配 [a-zA-Z0-9_] 以及其他语言的字母数字
+    # 所以我们只需要移除 [^\w\-] 即可
+    sanitized = re.sub(r'[^\w\-]', '', filename)
+    
     # 防止文件名过长
     return sanitized[:100]
 
@@ -181,10 +212,10 @@ async def list_archives():
         )
 
 
-@router.get("/load/{archive_name}", summary="加载存档")
-async def load_archive(archive_name: str):
+@router.get("/load", summary="加载存档")
+async def load_archive(archiveName: str):
     """根据名称加载一个 json 存档。"""
-    safe_filename = sanitize_filename(archive_name)
+    safe_filename = sanitize_filename(archiveName)
     file_path = os.path.join(data_dir, f"{safe_filename}.json")
     
     if not await aiofiles.os.path.exists(file_path):
@@ -201,11 +232,26 @@ async def load_archive(archive_name: str):
         )
 
 
-@router.post("/save/{archive_name}", summary="保存存档")
-async def save_archive(archive_name: str, payload: SaveData):
+@router.post("/save", summary="保存存档")
+async def save_archive(payload: SaveData):
     """创建或更新一个 json 存档。"""
+    # 1. 尝试从 payload 顶层获取 archiveName
+    archive_name = payload.archiveName
+    
+    # 2. 如果没有，尝试从 data._internalName 获取
+    if not archive_name and isinstance(payload.data, dict):
+        archive_name = payload.data.get("_internalName")
+    
+    if not archive_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Archive name is required (in body 'archiveName' or 'data._internalName')"
+        )
+
     safe_filename = sanitize_filename(archive_name)
     file_path = os.path.join(data_dir, f"{safe_filename}.json")
+
+    logger.info("正在保存存档: 原始名称='%s', 安全名称='%s'", archive_name, safe_filename)
 
     try:
         async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
@@ -218,10 +264,10 @@ async def save_archive(archive_name: str, payload: SaveData):
         )
 
 
-@router.delete("/delete/{archive_name}", summary="删除存档")
-async def delete_archive(archive_name: str):
+@router.delete("/delete", summary="删除存档")
+async def delete_archive(archiveName: str):
     """根据名称删除一个 json 存档。"""
-    safe_filename = sanitize_filename(archive_name)
+    safe_filename = sanitize_filename(archiveName)
     file_path = os.path.join(data_dir, f"{safe_filename}.json")
 
     if not await aiofiles.os.path.exists(file_path):
@@ -247,8 +293,8 @@ async def root():
     )
 
 # 将带有密码保护的路由器包含到主应用中
-# 所有的 api 路径都会是 /{password}/...
-app.include_router(router, prefix="/{password}")
+# 所有的 api 路径都会是 /{password}/api/...
+app.include_router(router, prefix="/{password}/api")
 
 # --- 运行应用 ---
 def print_banner(host, port, version, data_dir):

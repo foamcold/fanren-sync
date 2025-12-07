@@ -1,6 +1,6 @@
 # Fanren Sync
 
-`Fanren Sync` 是一个基于 FastAPI 构建的简单、安全、可自托管的 JSON 数据同步服务。它的灵感来源于一个简单的 Node.js 文件同步工具，并通过 Python 进行了重构和功能增强，特别加入了基于密码的认证和安全防护措施。
+`Fanren Sync` 是一个基于 FastAPI 构建的简单、安全、可自托管的 JSON 数据同步服务。它的灵感来源于一个简单的 Node.js 文件同步工具，并通过 Python 进行了重构和功能增强，特别加入了基于密码的认证和安全防护措施。本项目主要用于 SillyTavern 角色卡 “凡人修仙传” 云存档功能。
 
 ## ✨ 功能特性
 
@@ -55,87 +55,6 @@ python main.py
 ```
 服务将以开发模式启动在 `http://localhost:8000`。
 
-## 📚 API 使用说明
-
-所有 API 的 URL 基础路径为 `http://<your-host>:<port>/<your-password>`。
-
-以下示例中，我们假设 `SYNC_PASSWORD` 为 `your_password`。
-
-客户端需要使用的基础 URL 示例：
-`http://localhost:8000/your_password`
-
----
-
-### 列出所有存档
-
-- **方法**: `GET`
-- **路径**: `/list`
-- **示例**: `GET http://localhost:8000/your_password/list`
-- **成功响应**:
-  ```json
-  {
-    "success": true,
-    "archives": ["test_data_1", "my_notes"]
-  }
-  ```
-
----
-
-### 加载存档
-
-- **方法**: `GET`
-- **路径**: `/load/{archive_name}`
-- **示例**: `GET http://localhost:8000/your_password/load/test_data_1`
-- **成功响应**:
-  ```json
-  {
-    "success": true,
-    "data": { "key": "value", "notes": [1, 2, 3] }
-  }
-  ```
-- **失败响应 (未找到)**:
-  ```json
-  {
-    "detail": "存档未找到"
-  }
-  ```
-
----
-
-### 保存存档
-
-- **方法**: `POST`
-- **路径**: `/save/{archive_name}`
-- **请求体 (Body)**:
-  ```json
-  {
-    "data": { "key": "new value", "notes": [4, 5, 6] }
-  }
-  ```
-- **示例**: `POST http://localhost:8000/your_password/save/test_data_1`
-- **成功响应**:
-  ```json
-  {
-    "success": true,
-    "message": "存档已成功保存"
-  }
-  ```
-
----
-
-### 删除存档
-
-- **方法**: `DELETE`
-- **路径**: `/delete/{archive_name}`
-- **示例**: `DELETE http://localhost:8000/your_password/delete/test_data_1`
-- **成功响应**:
-  ```json
-  {
-    "success": true,
-    "message": "存档已成功删除"
-  }
-  ```
-
 ## 🐳 生产部署指南
 
 ### 方法二：使用 Docker
@@ -186,6 +105,87 @@ python main.py
     docker-compose down
     ```
 
-## 🤝 贡献
+## 📚 API 使用说明
 
-欢迎提交 PR 或 Issue 来改进这个项目。
+所有 API 的 URL 基础路径为 `http://<your-host>:<port>/<your-password>`。
+
+以下示例中，我们假设 `SYNC_PASSWORD` 为 `your_password`。
+
+客户端需要使用的基础 URL 示例：
+`http://localhost:8000/your_password`
+
+---
+
+### 列出所有存档
+
+- **方法**: `GET`
+- **路径**: `/list`
+- **示例**: `GET http://localhost:8000/your_password/api/list`
+- **成功响应**:
+  ```json
+  {
+    "success": true,
+    "archives": ["test_data_1", "my_notes"]
+  }
+  ```
+
+---
+
+### 加载存档
+
+- **方法**: `GET`
+- **路径**: `/load`
+- **参数**: `archiveName` (Query String)
+- **示例**: `GET http://localhost:8000/your_password/api/load?archiveName=test_data_1`
+- **成功响应**:
+  ```json
+  {
+    "success": true,
+    "data": { "key": "value", "notes": [1, 2, 3] }
+  }
+  ```
+- **失败响应 (未找到)**:
+  ```json
+  {
+    "detail": "存档未找到"
+  }
+  ```
+
+---
+
+### 保存存档
+
+- **方法**: `POST`
+- **路径**: `/save`
+- **请求体**:
+  ```json
+  {
+    "archiveName": "test_data_1",
+    "data": { "key": "new value", "notes": [4, 5, 6] }
+  }
+  ```
+  *(注：如果 `archiveName` 缺失，会尝试从 `data._internalName` 获取)*
+- **示例**: `POST http://localhost:8000/your_password/api/save`
+- **成功响应**:
+  ```json
+  {
+    "success": true,
+    "message": "存档已成功保存"
+  }
+  ```
+
+---
+
+### 删除存档
+
+- **方法**: `DELETE`
+- **路径**: `/delete`
+- **参数**: `archiveName` (Query String)
+- **示例**: `DELETE http://localhost:8000/your_password/api/delete?archiveName=test_data_1`
+- **成功响应**:
+  ```json
+  {
+    "success": true,
+    "message": "存档已成功删除"
+  }
+  ```
