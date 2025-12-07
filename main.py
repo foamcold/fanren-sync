@@ -4,7 +4,7 @@ import uvicorn
 import aiofiles
 import aiofiles.os
 from typing import Any
-from fastapi import FastAPI, status, Depends, HTTPException, Path, APIRouter
+from fastapi import FastAPI, status, Depends, HTTPException, Path, APIRouter, Request
 from fastapi.responses import JSONResponse
 import json
 from pydantic import BaseModel
@@ -21,6 +21,24 @@ app = FastAPI(
     docs_url=None,  # 禁用默认的 /docs
     redoc_url=None,  # 禁用默认的 /redoc
 )
+
+# --- 异常处理 ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理，防止堆栈信息泄露"""
+    # 在这里可以添加日志记录逻辑
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"success": False, "error": "服务器内部错误"},
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """统一 HTTP 异常返回格式"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "error": exc.detail},
+    )
 
 # --- 配置 ---
 sync_password = os.getenv("sync_password")
@@ -50,7 +68,7 @@ async def verify_password(password: str = Path(..., title="访问密码")):
     """
     if not sync_password or password != sync_password:
         raise HTTPException(
-            status_code=status.http_403_forbidden,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="无效的访问密码",
         )
 
@@ -68,8 +86,8 @@ async def list_archives():
         return {"success": True, "archives": archives}
     except Exception as e:
         raise HTTPException(
-            status_code=status.http_500_internal_server_error,
-            detail=f"无法列出存档: {e}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"无法列出存档: {str(e)}",
         )
 
 
@@ -88,8 +106,8 @@ async def load_archive(archive_name: str):
             return JSONResponse(content={"success": True, "data": json.loads(content)})
     except Exception as e:
         raise HTTPException(
-            status_code=status.http_500_internal_server_error,
-            detail=f"无法加载存档: {e}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"无法加载存档: {str(e)}",
         )
 
 
@@ -105,8 +123,8 @@ async def save_archive(archive_name: str, payload: SaveData):
         return {"success": True, "message": "存档已成功保存"}
     except Exception as e:
         raise HTTPException(
-            status_code=status.http_500_internal_server_error,
-            detail=f"无法保存存档: {e}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"无法保存存档: {str(e)}",
         )
 
 
@@ -124,8 +142,8 @@ async def delete_archive(archive_name: str):
         return {"success": True, "message": "存档已成功删除"}
     except Exception as e:
         raise HTTPException(
-            status_code=status.http_500_internal_server_error,
-            detail=f"无法删除存档: {e}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"无法删除存档: {str(e)}",
         )
 
 # --- 应用设置 ---
@@ -145,7 +163,7 @@ app.router.lifespan = lifespan
 async def root():
     """根路径访问被禁止。"""
     return JSONResponse(
-        status_code=status.http_403_forbidden,
+        status_code=status.HTTP_403_FORBIDDEN,
         content={"success": False, "error": "访问被拒绝。请使用正确的 api 路径和密码。"},
     )
 
