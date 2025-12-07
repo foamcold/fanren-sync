@@ -1,8 +1,10 @@
 # Fanren Sync
 
+**本项目主要用于 SillyTavern 角色卡 《凡人修仙传》 云存档功能。**
+
 `Fanren Sync` 是一个基于 FastAPI 构建的简单、安全、可自托管的 JSON 数据同步服务。
 它的灵感来源于一个简单的 Node.js 文件同步工具，并通过 Python 进行了重构和功能增强，特别加入了基于密码的认证和安全防护措施。
-本项目主要用于 SillyTavern 角色卡 《凡人修仙传》 云存档功能。
+
 
 ## ✨ 功能特性
 
@@ -138,19 +140,19 @@ docker-compose up -d
 
 ## 📚 API 使用说明
 
-所有 API 的 URL 基础路径为 `http://<your-host>:<port>/<your-password>/api`。
+所有 API 的 URL 基础路径为 `http://<your-host>:<port>/<your-password>`。
 
 以下示例中，我们假设 `SYNC_PASSWORD` 为 `your_password`。
 
 客户端需要使用的基础 URL 示例：
-`http://localhost:8000/your_password/api`
+`http://localhost:8000/your_password`
 
 ---
 
 ### 列出所有存档
 
 - **方法**: `GET`
-- **路径**: `/list`
+- **路径**: `/api/list`
 - **示例**: `GET http://localhost:8000/your_password/api/list`
 - **成功响应**:
   ```json
@@ -165,7 +167,7 @@ docker-compose up -d
 ### 加载存档
 
 - **方法**: `GET`
-- **路径**: `/load`
+- **路径**: `/api/load`
 - **参数**: `archiveName` (Query String)
 - **示例**: `GET http://localhost:8000/your_password/api/load?archiveName=test_data_1`
 - **成功响应**:
@@ -187,7 +189,7 @@ docker-compose up -d
 ### 保存存档
 
 - **方法**: `POST`
-- **路径**: `/save`
+- **路径**: `/api/save`
 - **请求体**:
   ```json
   {
@@ -210,7 +212,7 @@ docker-compose up -d
 ### 删除存档
 
 - **方法**: `DELETE`
-- **路径**: `/delete`
+- **路径**: `/api/delete`
 - **参数**: `archiveName` (Query String)
 - **示例**: `DELETE http://localhost:8000/your_password/api/delete?archiveName=test_data_1`
 - **成功响应**:
