@@ -67,7 +67,7 @@ python main.py
 2.  **运行 Docker 容器**:
     ```bash
     docker run -d \
-      --name fanren-sync-container \
+      --name fanren-sync \
       -p 8000:8000 \
       -e SYNC_PASSWORD="your_password" \
       -v $(pwd)/data:/app/data \
