@@ -59,60 +59,85 @@ python main.py
 
 ### 方法二：使用 Docker
 
-1.  **构建 Docker 镜像**:
-    ```bash
-    docker build -t fanren-sync .
-    ```
+你可以直接使用我们发布在 Docker Hub 上的镜像来运行服务。
 
-2.  **运行 Docker 容器**:
-    ```bash
-    docker run -d \
-      --name fanren-sync \
-      -p 8000:8000 \
-      -e SYNC_PASSWORD="your_password" \
-      -v $(pwd)/data:/app/data \
-      fanren-sync
-    ```
-    - `-d`: 后台运行
-    - `-p`: 端口映射
-    - `-e`: 设置环境变量
-    - `-v`: 将本地的 `data` 目录挂载到容器中，实现数据持久化
+**AMD64 架构 (x86_64)**:
+```bash
+docker run -d \
+  --name fanren-sync \
+  -p 8000:8000 \
+  -e SYNC_PASSWORD="your_password" \
+  -v $(pwd)/data:/app/data \
+  foamcold/fanren-sync:amd
+```
+
+**ARM64 架构 (Apple Silicon / Raspberry Pi)**:
+```bash
+docker run -d \
+  --name fanren-sync \
+  -p 8000:8000 \
+  -e SYNC_PASSWORD="your_password" \
+  -v $(pwd)/data:/app/data \
+  foamcold/fanren-sync:arm
+```
+
+参数说明：
+- `-d`: 后台运行
+- `-p`: 端口映射
+- `-e`: 设置环境变量
+- `-v`: 将本地的 `data` 目录挂载到容器中，实现数据持久化
 
 ### 方法三：使用 Docker Compose
 
-这是最推荐的生产部署方式。它会自动处理镜像构建、环境变量注入和数据持久化。
+这是最推荐的生产部署方式。它会自动处理镜像拉取、环境变量注入和数据持久化。
 
-1.  **配置环境变量**:
-    Docker Compose 会使用 `${SYNC_PASSWORD}` 语法从你的 shell 环境中读取密码。在启动前，请先设置环境变量：
-    ```bash
-    # Linux / macOS
-    export SYNC_PASSWORD="your_password"
+**AMD64 架构 (x86_64)**:
+```yaml
+version: '3'
+services:
+  app:
+    image: foamcold/fanren-sync:amd
+    container_name: fanren-sync
+    environment:
+      - SYNC_PASSWORD=${SYNC_PASSWORD}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+```
 
-    # Windows (CMD)
-    set SYNC_PASSWORD="your_password"
+**ARM64 架构 (Apple Silicon / Raspberry Pi)**:
+```yaml
+version: '3'
+services:
+  app:
+    image: foamcold/fanren-sync:arm
+    container_name: fanren-sync
+    environment:
+      - SYNC_PASSWORD=${SYNC_PASSWORD}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+```
 
-    # Windows (PowerShell)
-    $env:SYNC_PASSWORD="your_password"
-    ```
-
-2.  **启动服务**:
-    ```bash
-    docker-compose up -d --build
-    ```
-
-3.  **停止服务**:
-    ```bash
-    docker-compose down
-    ```
+将上述内容保存为 `docker-compose.yml`，然后运行：
+```bash
+# 设置密码并启动
+export SYNC_PASSWORD="your_password"
+docker-compose up -d
+```
 
 ## 📚 API 使用说明
 
-所有 API 的 URL 基础路径为 `http://<your-host>:<port>/<your-password>`。
+所有 API 的 URL 基础路径为 `http://<your-host>:<port>/<your-password>/api`。
 
 以下示例中，我们假设 `SYNC_PASSWORD` 为 `your_password`。
 
 客户端需要使用的基础 URL 示例：
-`http://localhost:8000/your_password`
+`http://localhost:8000/your_password/api`
 
 ---
 
@@ -189,3 +214,7 @@ python main.py
     "message": "存档已成功删除"
   }
   ```
+
+## 🤝 贡献
+
+欢迎提交 PR 或 Issue 来改进这个项目。
