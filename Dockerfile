@@ -1,6 +1,6 @@
 # --- Stage 1: Build ---
 # 使用官方 Python 镜像作为基础镜像
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # 设置环境变量
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -30,8 +30,9 @@ COPY . .
 
 # --- 安全增强：创建非 root 用户 ---
 # 创建一个 UID 和 GID 均为 1001 的用户和组
-RUN addgroup -g 1001 appgroup && \
-    adduser -u 1001 -G appgroup -s /bin/sh -D appuser
+# 使用 groupadd 和 useradd 以兼容 Debian 系统
+RUN groupadd -g 1001 appgroup && \
+    useradd -u 1001 -g appgroup -s /bin/sh -m appuser
 
 # 将工作目录的所有权交给新用户
 RUN chown -R appuser:appgroup /app
@@ -43,6 +44,5 @@ USER appuser
 EXPOSE 8000
 
 # 定义容器启动时执行的命令
-# 注意：在 Docker 中，我们直接从环境变量获取密码，而不是 .env 文件
-# 密码需要在 `docker run` 或 `docker-compose.yml` 中设置
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 使用 python main.py 启动，以便应用自定义日志配置和启动检查逻辑
+CMD ["python", "main.py"]

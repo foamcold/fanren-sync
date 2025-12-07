@@ -108,7 +108,8 @@ LOGGING_CONFIG = {
 logger = logging.getLogger("app")
 
 # --- 配置 ---
-sync_password = os.getenv("sync_password")
+# 优先读取大写 SYNC_PASSWORD，兼容小写 sync_password
+sync_password = os.getenv("SYNC_PASSWORD") or os.getenv("sync_password")
 data_dir = os.path.join(os.path.dirname(__file__), "data")
 
 
@@ -329,8 +330,8 @@ def print_banner(host, port, version, data_dir):
 
 if __name__ == "__main__":
     if not sync_password:
-        print("错误: 环境变量 sync_password 未设置。")
-        print("请在项目根目录创建一个 .env 文件并设置 sync_password。")
+        print("错误: 环境变量 SYNC_PASSWORD 未设置。")
+        print("请在项目根目录创建一个 .env 文件并设置 SYNC_PASSWORD。")
     else:
         host = "0.0.0.0"
         port = 8000
