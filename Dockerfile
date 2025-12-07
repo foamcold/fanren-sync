@@ -28,17 +28,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # 复制项目代码
 COPY . .
 
-# --- 安全增强：创建非 root 用户 ---
-# 创建一个 UID 和 GID 均为 1001 的用户和组
-# 使用 groupadd 和 useradd 以兼容 Debian 系统
-RUN groupadd -g 1001 appgroup && \
-    useradd -u 1001 -g appgroup -s /bin/sh -m appuser
-
-# 将工作目录的所有权交给新用户
-RUN chown -R appuser:appgroup /app
-
-# 切换到非 root 用户
-USER appuser
+# --- 权限设置 ---
+# 默认以 root 运行，避免挂载卷时的权限问题
+# 如果需要非 root 运行，请确保宿主机挂载目录的权限与容器内用户匹配
 
 # 暴露端口
 EXPOSE 8000
