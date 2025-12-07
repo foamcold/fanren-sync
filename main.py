@@ -3,15 +3,109 @@ import re
 import uvicorn
 import aiofiles
 import aiofiles.os
+import logging
+import sys
 from typing import Any
 from fastapi import FastAPI, status, Depends, HTTPException, Path, APIRouter, Request
 from fastapi.responses import JSONResponse
 import json
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
 # 加载 .env 文件中的环境变量
 load_dotenv()
+
+# --- 日志配置 ---
+class TranslationFilter(logging.Filter):
+    """
+    日志过滤器：
+    1. 将英文日志翻译成中文
+    2. 将 0.0.0.0 和 127.0.0.1 替换为 localhost
+    """
+    def filter(self, record):
+        msg = record.msg
+        args = record.args
+
+        # 如果有参数，先进行格式化，生成最终的消息字符串
+        # 这样可以解决 %d, %s 等占位符无法正确显示的问题
+        if args:
+            try:
+                msg = msg % args
+            except Exception:
+                # 如果格式化失败，保留原样，避免崩溃
+                pass
+            # 格式化后清空参数，防止二次格式化
+            record.args = ()
+
+        if isinstance(msg, str):
+            # 替换 IP 地址 (在格式化之后进行，这样参数里的 IP 也会被替换)
+            msg = msg.replace("0.0.0.0", "localhost").replace("127.0.0.1", "localhost")
+            
+            # 翻译常见 Uvicorn 日志
+            if "Started server process" in msg:
+                msg = msg.replace("Started server process", "服务进程已启动")
+            elif "Waiting for application startup" in msg:
+                msg = "正在等待应用启动..."
+            elif "Application startup complete" in msg:
+                msg = "应用启动完成"
+            elif "Uvicorn running on" in msg:
+                msg = msg.replace("Uvicorn running on", "Uvicorn 运行于")
+                msg = msg.replace("(Press CTRL+C to quit)", "(按 CTRL+C 退出)")
+            elif "Shutting down" in msg:
+                msg = "正在关闭服务..."
+            elif "Waiting for application shutdown" in msg:
+                msg = "正在等待应用关闭..."
+            elif "Application shutdown complete" in msg:
+                msg = "应用关闭完成"
+            elif "Finished server process" in msg:
+                msg = msg.replace("Finished server process", "服务进程已结束")
+            
+            record.msg = msg
+        return True
+
+# 强制统一日志格式：时间 - 级别 - 内容
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "translation": {
+            "()": TranslationFilter,
+        },
+    },
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s - %(levelname)s - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+            "stream": "ext://sys.stdout",
+            "filters": ["translation"],
+        },
+    },
+    "loggers": {
+        "uvicorn": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "uvicorn.error": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "uvicorn.access": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}
+
+# --- 配置 ---
+sync_password = os.getenv("sync_password")
+data_dir = os.path.join(os.path.dirname(__file__), "data")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 应用启动时执行
+    await aiofiles.os.makedirs(data_dir, exist_ok=True)
+    yield
+    # 应用关闭时执行 (如果需要)
+
 
 # --- 应用实例 ---
 app = FastAPI(
@@ -20,6 +114,7 @@ app = FastAPI(
     description="一个简单、安全、自托管的 json 数据同步服务。",
     docs_url=None,  # 禁用默认的 /docs
     redoc_url=None,  # 禁用默认的 /redoc
+    lifespan=lifespan,
 )
 
 # --- 异常处理 ---
@@ -39,11 +134,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"success": False, "error": exc.detail},
     )
-
-# --- 配置 ---
-sync_password = os.getenv("sync_password")
-data_dir = os.path.join(os.path.dirname(__file__), "data")
-
 
 # --- pydantic 模型 ---
 class SaveData(BaseModel):
@@ -146,17 +236,6 @@ async def delete_archive(archive_name: str):
             detail=f"无法删除存档: {str(e)}",
         )
 
-# --- 应用设置 ---
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 应用启动时执行
-    await aiofiles.os.makedirs(data_dir, exist_ok=True)
-    yield
-    # 应用关闭时执行 (如果需要)
-
-app.router.lifespan = lifespan
 
 
 @app.get("/")
@@ -172,12 +251,43 @@ async def root():
 app.include_router(router, prefix="/{password}")
 
 # --- 运行应用 ---
+def print_banner(host, port, version, data_dir):
+    """打印带边框的启动横幅"""
+    def get_width(s):
+        return sum(2 if '\u4e00' <= c <= '\u9fff' else 1 for c in s)
+
+    content_lines = [
+        f"Fanren-Sync v{version} 启动成功",
+        "",
+        f"数据目录: {data_dir}",
+        f"服务地址: http://{'localhost' if host == '0.0.0.0' else host}:{port}"
+    ]
+    
+    # 计算最大宽度
+    max_width = max(get_width(line) for line in content_lines)
+    # 确保最小宽度，避免太窄
+    max_width = max(max_width, 40)
+    box_width = max_width + 4  # 左右各留2空格
+    
+    print(f"┌{'─' * box_width}┐")
+    for line in content_lines:
+        padding = box_width - get_width(line)
+        # 居中显示标题，其他左对齐
+        if "启动成功" in line:
+            left_pad = padding // 2
+            right_pad = padding - left_pad
+            print(f"│{' ' * left_pad}{line}{' ' * right_pad}│")
+        else:
+            print(f"│  {line}{' ' * (padding - 2)}│")
+    print(f"└{'─' * box_width}┘")
+
 if __name__ == "__main__":
     if not sync_password:
         print("错误: 环境变量 sync_password 未设置。")
         print("请在项目根目录创建一个 .env 文件并设置 sync_password。")
     else:
-        print(f"--- 启动 fanren-sync v{app.version} ---")
-        print(f"数据存储目录: {data_dir}")
-        print("服务已启动。使用 ctrl+c 停止服务。")
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        host = "0.0.0.0"
+        port = 8000
+        print_banner(host, port, app.version, data_dir)
+        # 使用自定义日志配置启动
+        uvicorn.run(app, host=host, port=port, log_config=LOGGING_CONFIG)
