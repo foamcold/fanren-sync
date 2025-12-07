@@ -6,6 +6,7 @@ import aiofiles.os
 import logging
 import sys
 import urllib.parse
+import traceback
 from typing import Any
 from fastapi import FastAPI, status, Depends, HTTPException, Path, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -259,6 +260,8 @@ async def save_archive(payload: SaveData):
             await f.write(json.dumps(payload.data, indent=2, ensure_ascii=False))
         return {"success": True, "message": "存档已成功保存"}
     except Exception as e:
+        # 打印详细的堆栈跟踪，以便调试
+        logger.error("保存存档失败: %s\n%s", str(e), traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"无法保存存档: {str(e)}",
